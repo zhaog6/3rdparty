@@ -204,7 +204,7 @@ namespace bemtool {
 
     }
 
-    void compute_block_w_mass(int M, int N, const int *const jjx, const int *const jjy, Cplx* mat,double coef){
+    void compute_block_w_mass(int M, int N, const int *const jjx, const int *const jjy, Cplx* mat,Cplx coef){
       elt_mat = 0.; Ix.clear(); Iy.clear();
       std::fill_n(mat,M*N,0);
       for(int k=0; k<M; k++){
@@ -233,6 +233,56 @@ namespace bemtool {
       for(int kx=0; kx<nb_dof_loc_x; kx++){ if(nx[kx]!=-1){
           for(int ky=0; ky<nb_dof_loc_y; ky++){ if(ny[ky]!=-1){
           mat[nx[kx]+M*ny[ky]] += elt_mat(kx,ky);
+        }}
+        }}
+
+      if (jx==jy){
+        elt_mat=Mloc(jx);
+        for(int kx=0; kx<nb_dof_loc_x; kx++){ if(nx[kx]!=-1){
+          for(int ky=0; ky<nb_dof_loc_y; ky++){ if(ny[ky]!=-1){
+          mat[nx[kx]+M*ny[ky]] += coef*elt_mat(kx,ky);
+        }}
+        }}
+      }
+
+    }
+      }
+
+    }
+
+    /** 
+     * @brief compute the block corresponding to alpha*BEM_matrix + coef*w_mass 
+     * @param mat the coefficient of the block matrix
+     */
+    void compute_block_w_mass(int M, int N, const int *const jjx, const int *const jjy, Cplx* mat,Cplx coef, Cplx alpha){
+      elt_mat = 0.; Ix.clear(); Iy.clear();
+      std::fill_n(mat,M*N,0);
+      for(int k=0; k<M; k++){
+    const std::vector<N2>& jj = dofx.ToElt(jjx[k]);
+    for(int l=0; l<jj.size(); l++){
+      const N2& j = jj[l]; Ix[j[0]][j[1]] = k;
+    }
+      }
+
+      for(int k=0; k<N; k++){
+    const std::vector<N2>& jj = dofy.ToElt(jjy[k]);
+    for(int l=0; l<jj.size(); l++){
+      const N2& j = jj[l]; Iy[j[0]][j[1]] = k;
+    }
+      }
+
+      for(ItTypeX itx = Ix.begin(); itx!=Ix.end(); itx++){
+    const int&   jx = itx->first;
+    const Nlocx& nx = itx->second;
+
+    for(ItTypeY ity = Iy.begin(); ity!=Iy.end(); ity++){
+      const int&   jy = ity->first;
+      const Nlocy& ny = ity->second;
+
+      elt_mat = biop(jx,jy);
+      for(int kx=0; kx<nb_dof_loc_x; kx++){ if(nx[kx]!=-1){
+          for(int ky=0; ky<nb_dof_loc_y; ky++){ if(ny[ky]!=-1){
+          mat[nx[kx]+M*ny[ky]] += alpha*elt_mat(kx,ky);
         }}
         }}
 

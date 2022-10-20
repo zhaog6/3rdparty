@@ -14,14 +14,20 @@ class BIO_Generator : public htool::VirtualGenerator<Cplx>{
   Dof<Discretization> dof;
   SubBIOp<BIOp<KernelType>> subV;
   // std::vector<int> boundary;
+  Cplx multiply_coeff; // true kernel = multiply_coeff*(bemmtool_kernel)
 
 public:
-    BIO_Generator(const Dof<Discretization>& dof0, const double& kappa):VirtualGenerator(NbDof(dof0),NbDof(dof0)), dof(dof0),subV(dof,dof,kappa) {}
+    BIO_Generator(const Dof<Discretization>& dof0, const double& kappa, const Cplx& coeff1=1.0+1i*0.0):VirtualGenerator(NbDof(dof0),NbDof(dof0)), dof(dof0),subV(dof,dof,kappa),multiply_coeff(coeff1) {}
     // {boundary=is_boundary_nodes(dof);}
 
   void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {
     SubBIOp<BIOp<KernelType>> subV_local = subV;
     subV_local.compute_block(M,N,rows,cols,ptr);
+    if( !( multiply_coeff == 1.0+1i*0.0) ){
+      // case bemtool kernel multiplied by a coefficient
+      std::transform(ptr, ptr+M*N, ptr,
+               std::bind(std::multiplies<Cplx>(), std::placeholders::_1, multiply_coeff));
+    }
   }
 
 };
@@ -29,13 +35,13 @@ public:
 template<int K>
 class BIO_Generator<BIOpKernel<K,HS_OP,2,P0_1D,P0_1D>,P0_1D> : public htool::VirtualGenerator<Cplx>{
   public:
-    BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa, const Cplx& coeff1=1.0+1i*0.0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 template<int K>
 class BIO_Generator<BIOpKernel<K,HS_OP,3,P0_2D,P0_2D>,P0_2D> : public htool::VirtualGenerator<Cplx>{
   public:
-    BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa, const Cplx& coeff1=1.0+1i*0.0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 
@@ -44,17 +50,23 @@ class BIO_Generator_w_mass : public htool::VirtualGenerator<Cplx>{
   Dof<Discretization> dof;
   SubBIOp<BIOp<KernelType>> subV;
   // std::vector<int> boundary;
-  double coef;
+  Cplx coef;
+  Cplx alpha; // true kernel = alpha*(bemmtool_kernel) + coef*w_mass
 
 public:
-    BIO_Generator_w_mass(const Dof<Discretization>& dof0, const double& kappa,const double& coef0):VirtualGenerator(NbDof(dof0),NbDof(dof0)), dof(dof0),subV(dof,dof,kappa),coef(coef0) {}
+    BIO_Generator_w_mass(const Dof<Discretization>& dof0, const double& kappa, const Cplx& coef0, const Cplx& alpha0 =1.0+1i*0.0):VirtualGenerator(NbDof(dof0),NbDof(dof0)), dof(dof0),subV(dof,dof,kappa),coef(coef0),alpha(alpha0) {}
     // {boundary=is_boundary_nodes(dof);}
 
 
 
   void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {
     SubBIOp<BIOp<KernelType>> subV_local = subV;
-    subV_local.compute_block_w_mass(M,N,rows,cols,ptr,coef);
+    if( !( alpha == 1.0+1i*0.0) ){
+      subV_local.compute_block_w_mass(M,N,rows,cols,ptr,coef,alpha);
+    }
+    else{
+      subV_local.compute_block_w_mass(M,N,rows,cols,ptr,coef);
+    }
 
 }
 
@@ -63,13 +75,13 @@ public:
 template<int K>
 class BIO_Generator_w_mass<BIOpKernel<K,HS_OP,2,P0_1D,P0_1D>,P0_1D> : public htool::VirtualGenerator<Cplx>{
   public:
-    BIO_Generator_w_mass(const Dof<P0_1D>& dof0, const double& kappa,const double& coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    BIO_Generator_w_mass(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef0, const Cplx& alpha0 =1.0+1i*0.0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 template<int K>
 class BIO_Generator_w_mass<BIOpKernel<K,HS_OP,3,P0_2D,P0_2D>,P0_2D> : public htool::VirtualGenerator<Cplx>{
   public:
-    BIO_Generator_w_mass(const Dof<P0_2D>& dof0, const double& kappa,const double& coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    BIO_Generator_w_mass(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef0, const Cplx& alpha0 =1.0+1i*0.0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 
@@ -80,10 +92,10 @@ class Combined_BIO_Generator : public htool::VirtualGenerator<Cplx>{
   SubBIOp<BIOp<KernelType2>> sub2;
   // std::vector<int> boundary;
   Cplx combined_coef_1,combined_coef_2;
-  double mass_coef;
+  Cplx mass_coef;
 
 public:
-    Combined_BIO_Generator(const Dof<Discretization>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const double& mass_coef0):VirtualGenerator(NbDof(dof0),NbDof(dof0)), dof(dof0),sub1(dof,dof,kappa),sub2(dof,dof,kappa),combined_coef_1(coef1), combined_coef_2(coef2),mass_coef(mass_coef0) {}
+    Combined_BIO_Generator(const Dof<Discretization>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const Cplx& mass_coef0):VirtualGenerator(NbDof(dof0),NbDof(dof0)), dof(dof0),sub1(dof,dof,kappa),sub2(dof,dof,kappa),combined_coef_1(coef1), combined_coef_2(coef2),mass_coef(mass_coef0) {}
     
     Combined_BIO_Generator(const Dof<Discretization>& dof0, const double& kappa,const Cplx& coef1,const double& mass_coef0):VirtualGenerator(NbDof(dof0),NbDof(dof0)), dof(dof0),sub1(dof,dof,kappa),sub2(dof,dof,kappa),combined_coef_1(coef1), combined_coef_2(1),mass_coef(mass_coef0) {}
 
@@ -109,43 +121,43 @@ public:
 template<int K>
 class Combined_BIO_Generator<BIOpKernel<K,HS_OP,2,P0_1D,P0_1D>,BIOpKernel<K,HS_OP,2,P0_1D,P0_1D>,P0_1D> : public htool::VirtualGenerator<Cplx>{
   public:
-    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
-    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 template<int K, typename KernelType>
 class Combined_BIO_Generator<BIOpKernel<K,HS_OP,2,P0_1D,P0_1D>,KernelType,P0_1D> : public htool::VirtualGenerator<Cplx>{
   public:
-    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
-    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 template<int K, typename KernelType>
 class Combined_BIO_Generator<KernelType,BIOpKernel<K,HS_OP,2,P0_1D,P0_1D>,P0_1D> : public htool::VirtualGenerator<Cplx>{
   public:
-    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
-    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_1D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 template<int K>
 class Combined_BIO_Generator<BIOpKernel<K,HS_OP,3,P0_2D,P0_2D>,BIOpKernel<K,HS_OP,3,P0_2D,P0_2D>,P0_2D> : public htool::VirtualGenerator<Cplx>{
   public:
-    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
-    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 template<int K, typename KernelType>
 class Combined_BIO_Generator<BIOpKernel<K,HS_OP,3,P0_2D,P0_2D>,KernelType,P0_2D> : public htool::VirtualGenerator<Cplx>{
   public:
-    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
-    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 template<int K, typename KernelType>
 class Combined_BIO_Generator<KernelType,BIOpKernel<K,HS_OP,3,P0_2D,P0_2D>,P0_2D> : public htool::VirtualGenerator<Cplx>{
   public:
-    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
-    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const double& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& coef2,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
+    Combined_BIO_Generator(const Dof<P0_2D>& dof0, const double& kappa,const Cplx& coef1,const Cplx& mass_coef0):VirtualGenerator(0,0) {std::cout << "BemTool error: cannot use P0 discretization with Hyper Singular operator." << std::endl; assert(0);}
     void copy_submatrix(int M, int N, const int *const rows, const int *const cols, Cplx *ptr) const {assert(0);}
 };
 
